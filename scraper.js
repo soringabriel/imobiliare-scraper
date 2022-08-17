@@ -2,6 +2,7 @@ const path = require('path');
 const queue = require('queue');
 const dotenv = require('dotenv');
 const cheerio = require("cheerio");
+const Database = require("./database");
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker');
@@ -10,6 +11,8 @@ puppeteer.use(StealthPlugin())
 puppeteer.use(AdblockerPlugin())
 dotenv.config({path: path.resolve(__dirname, '.env')})
 
+let places = [];
+let db = new Database();
 let scrapingBatchTime= new Date();
 let scrapingQueue = queue({ concurrency: process.env.PAGE_SCRAPE_CONCURRENCY });
 
@@ -19,23 +22,41 @@ function getAllAttributes(node) {
 	);
 };
 
-function extractData(content) {
-    let pagePlaces = [];
+async function extractData(content, pageNo) {
     let $ = cheerio.load(content);
 
     $(process.env.PLACES_SELECTOR).each(function(i, elm) {
-        let pagePlace = {};
+        let pagePlace = {
+            timestamp: scrapingBatchTime
+        };
         let attributes = getAllAttributes($(this).get(0));
         for (let index in attributes) {
             let attribute = attributes[index];
             if (attribute.name && attribute.name.startsWith("data-")) {
                 pagePlace[attribute.name.replace("data-", "")] = attribute.value; 
             }
+            if (attribute.name && attribute.name == "id") {
+                pagePlace.link = "https://www.imobiliare.ro/" + attribute.value;
+                pagePlace.id = attribute.value;
+            }
         }
-        pagePlaces.push(pagePlace);
+        if (pagePlace.hasOwnProperty("link")) {
+            pagePlace.unique_id = i + "-" + pageNo + "-" + Math.floor(scrapingBatchTime / 1000)
+            places.push(pagePlace);
+        }
     });
+}
 
-    return pagePlaces;
+async function getMaxPages(browser) {
+    let page = await browser.newPage();
+    await page.goto(process.env.URL_BASE, {
+        waitUntil: 'networkidle0',
+    });
+    let content = await page.content();
+    let $ = cheerio.load(content);
+    let maxPages = $(process.env.LAST_PAGE_SELECTOR).map((i, x) => $(x).attr('data-pagina')).toArray()[0];
+    page.close();
+    return maxPages;
 }
 
 (async () => {
@@ -47,15 +68,17 @@ function extractData(content) {
             '--disable-dev-sh-usage',
         ]
     });
-    for (let pageNo = 1; pageNo < 334; pageNo++) {
+    let maxPages = await getMaxPages(browser);
+    for (let pageNo = 1; pageNo < maxPages; pageNo++) {
         scrapingQueue.push(
             async function () {
                 let page = await browser.newPage();
-                let response = await page.goto(process.env.URL_BASE + "?pagina=" + pageNo, {
+                await page.goto(process.env.URL_BASE + "?pagina=" + pageNo, {
                     waitUntil: 'networkidle0',
                 });
                 let content = await page.content();
-                extractData(content);
+                await extractData(content, pageNo);
+                page.close();
             }.bind(this)
         )
     }
@@ -67,4 +90,6 @@ function extractData(content) {
             resolve(true);
         })
     });
+
+    try { await db.insertMany(places, {ordered: false}); } catch(e) { console.log(e); }
 })();
