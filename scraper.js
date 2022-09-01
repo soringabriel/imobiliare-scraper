@@ -92,4 +92,5 @@ async function getMaxPages(browser) {
     });
 
     try { await db.insertMany(places, {ordered: false}); } catch(e) { console.log(e); }
+    process.exit();
 })();
