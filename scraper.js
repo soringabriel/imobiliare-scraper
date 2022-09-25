@@ -72,13 +72,23 @@ async function getMaxPages(browser) {
     for (let pageNo = 1; pageNo < maxPages; pageNo++) {
         scrapingQueue.push(
             async function () {
-                let page = await browser.newPage();
-                await page.goto(process.env.URL_BASE + "?pagina=" + pageNo, {
-                    waitUntil: 'networkidle0',
-                });
-                let content = await page.content();
-                await extractData(content, pageNo);
-                page.close();
+                let retries = 0;
+                let maxRetries = 3;
+                let retry = true;
+                while (retry && retries < maxRetries) {
+                    let page = await browser.newPage();
+                    try {
+                        await page.goto(process.env.URL_BASE + "?pagina=" + pageNo, {
+                            waitUntil: 'networkidle0',
+                        });
+                        let content = await page.content();
+                        await extractData(content, pageNo);
+                        retry = false;
+                    } catch (e) {
+                        retries++;
+                    }
+                    page.close();
+                }
             }.bind(this)
         )
     }
