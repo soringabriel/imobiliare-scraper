@@ -13,6 +13,15 @@ class Database {
     }
 
     /**
+     * Sets database operation collection
+     * 
+     * @param collection
+     */
+    setCollection(collection = 'imobiliare') {
+        this.collection = collection;
+    }
+
+    /**
      * Inserts multiple rows in database
      * 
      * @param data
@@ -25,6 +34,34 @@ class Database {
         const collection = database.collection(this.collection);
     
         await collection.insertMany(data, options);
+    }
+
+    /**
+     * Find multiple rows in database
+     * 
+     * @param query
+     */
+    async find(query) {
+        let client = new MongoClient(this.mongodb_url);
+        await client.connect();
+        const database = client.db(this.db);
+        const collection = database.collection(this.collection);
+        let queryExecution = collection.find(query);
+        return await queryExecution.toArray();
+    }
+
+    /**
+     * Aggregate multiple rows in database
+     * 
+     * @param query
+     */
+    async aggregate(query) {
+        let client = new MongoClient(this.mongodb_url);
+        await client.connect();
+        const database = client.db(this.db);
+        const collection = database.collection(this.collection);
+        let queryExecution = collection.aggregate(query);
+        return await queryExecution.toArray();
     }
 }
 
