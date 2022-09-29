@@ -11,6 +11,9 @@ puppeteer.use(StealthPlugin())
 puppeteer.use(AdblockerPlugin())
 dotenv.config({path: path.resolve(__dirname, '.env')})
 
+const numberData = ['imovzt', 'camere', 'price', 'surface'];
+const maxRetries = 3;
+
 let places = [];
 let db = new Database();
 let scrapingBatchTime= new Date();
@@ -34,29 +37,41 @@ async function extractData(content, pageNo) {
             let attribute = attributes[index];
             if (attribute.name && attribute.name.startsWith("data-")) {
                 pagePlace[attribute.name.replace("data-", "")] = attribute.value; 
+                if (numberData.indexOf(attribute.name.replace("data-", "")) >= 0 && attribute.value != null) {
+                    pagePlace[attribute.name.replace("data-", "")] = parseFloat(attribute.value); 
+                }
             }
             if (attribute.name && attribute.name == "id") {
                 pagePlace.link = "https://www.imobiliare.ro/" + attribute.value;
                 pagePlace.id = attribute.value;
             }
         }
-        if (pagePlace.hasOwnProperty("link")) {
+        if (pagePlace.hasOwnProperty("link") && pagePlace.hasOwnProperty("price")) {
             pagePlace.unique_id = i + "-" + pageNo + "-" + Math.floor(scrapingBatchTime / 1000)
             places.push(pagePlace);
         }
     });
 }
 
-async function getMaxPages(browser) {
+async function getMaxPages(browser, retries = 0) {
+    if (retries >= maxRetries) {
+        return 0;
+    }
     let page = await browser.newPage();
-    await page.goto(process.env.URL_BASE, {
-        waitUntil: 'networkidle0',
-    });
-    let content = await page.content();
-    let $ = cheerio.load(content);
-    let maxPages = $(process.env.LAST_PAGE_SELECTOR).map((i, x) => $(x).attr('data-pagina')).toArray()[0];
-    page.close();
-    return maxPages;
+    try {
+        await page.goto(process.env.URL_BASE, {
+            waitUntil: 'networkidle0',
+        });
+        let content = await page.content();
+        let $ = cheerio.load(content);
+        let maxPages = $(process.env.LAST_PAGE_SELECTOR).map((i, x) => $(x).attr('data-pagina')).toArray()[0];
+        page.close();
+        return maxPages;
+    } catch (e) {
+        retries++;
+        page.close();
+        return getMaxPages(browser, retries);
+    }
 }
 
 (async () => {
@@ -73,7 +88,6 @@ async function getMaxPages(browser) {
         scrapingQueue.push(
             async function () {
                 let retries = 0;
-                let maxRetries = 3;
                 let retry = true;
                 while (retry && retries < maxRetries) {
                     let page = await browser.newPage();
