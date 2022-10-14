@@ -20,6 +20,8 @@ function plotGroupedData(title, fulldata, keys, mainKey) {
     }
     var layout = {
         title: title,
+        showlegend: true,
+        legend: {"orientation": "h"}
     };
     plot(data, layout);
 }
@@ -34,6 +36,8 @@ function plotMainData(title, fulldata, key) {
     })
     var layout = {
         title: title,
+        showlegend: true,
+        legend: {"orientation": "h"}
     };
     plot(data, layout);
 }
