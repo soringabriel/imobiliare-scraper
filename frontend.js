@@ -14,11 +14,14 @@ function plotGroupedData(title, fulldata, keys, mainKey) {
         data.push({
             x: fulldata.map((x) => { return x.timestamp; }),
             y: fulldata.map((x) => { return x[mainKey][key] ? x[mainKey][key].avg : -1; }),
-            type: 'line',
-            name: `${title} - ${key}`
+            type: 'bar',
+            name: `${key}`
         })
     }
-    plot(data);
+    var layout = {
+        title: title,
+    };
+    plot(data, layout);
 }
 
 function plotMainData(title, fulldata, key) {
@@ -29,7 +32,10 @@ function plotMainData(title, fulldata, key) {
         type: 'line',
         name: `${title}`
     })
-    plot(data);
+    var layout = {
+        title: title,
+    };
+    plot(data, layout);
 }
 
 (async () => {
